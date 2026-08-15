@@ -4,6 +4,7 @@
 > topics — in sync with its README, without hand-editing GitHub settings
 > on every release.
 
+[![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-blue?logo=github)](https://github.com/marketplace/actions/repo-about-box-sync)
 [![Security](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
