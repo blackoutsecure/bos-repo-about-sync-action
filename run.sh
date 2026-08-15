@@ -11,15 +11,19 @@
 #   1. Validate inputs.
 #   2. Resolve description (explicit > AI > README fallback > leave).
 #   3. Resolve topics (explicit > AI > fallback > skip).
-#   4. PATCH /repos/{owner}/{repo} with description + homepage +
+#   4. Resolve Marketplace categories and compare them with the listing.
+#   5. PATCH /repos/{owner}/{repo} with description + homepage +
 #      show_* flags. PUT /repos/{owner}/{repo}/topics with names.
-#   5. Write outputs + summary.
+#   6. Write outputs + summary.
 #
 # Dry-run short-circuits before any API write.
 
 set -euo pipefail
 
 : "${ERR_TITLE:=Repo About Box Sync}"
+: "${PRIMARY_CATEGORY:=auto}"
+: "${SECONDARY_CATEGORY:=auto}"
+: "${MARKETPLACE_SLUG:=}"
 
 # Shared helpers (die / require_var / validate_bool / ...). Sourced here
 # rather than relying on action.yml's source line, because run.sh runs
@@ -61,6 +65,21 @@ validate_bool SHOW_RELEASES
 validate_bool SHOW_DEPLOYMENTS
 validate_bool SHOW_PACKAGES
 validate_bool DRY_RUN
+
+CATEGORY_SLUGS='ai-assisted api-management chat code-quality code-review continuous-integration dependency-management deployment ides learning localization mobile monitoring open-source-management project-management publishing security support testing utilities'
+
+validate_category() {
+  case "$1" in
+    ''|auto) return 0 ;;
+  esac
+  for category in ${CATEGORY_SLUGS}; do
+    [ "${category}" = "$1" ] && return 0
+  done
+  die "category must be empty, auto, or a current GitHub Marketplace category slug (got: '$1')"
+}
+
+validate_category "${PRIMARY_CATEGORY}"
+validate_category "${SECONDARY_CATEGORY}"
 
 # ---------- Tool checks ------------------------------------------------------
 
@@ -215,6 +234,104 @@ elif [ "${GENERATE_TOPICS}" = "true" ]; then
   fi
 fi
 
+# ---------- Resolve Marketplace categories ---------------------------------
+#
+# GitHub exposes current categories through GraphQL, but does not expose a
+# supported category-edit mutation. We therefore compare and report drift;
+# category changes remain a Marketplace listing UI operation. Never claim a
+# write occurred for this unsupported API surface.
+
+CATEGORY_PRIMARY_FINAL=""
+CATEGORY_SECONDARY_FINAL=""
+CATEGORY_PRIMARY_CONFIDENCE=""
+CATEGORY_SECONDARY_CONFIDENCE=""
+CATEGORY_SOURCE="skipped"
+CURRENT_PRIMARY=""
+CURRENT_SECONDARY=""
+CATEGORY_STATUS="skipped"
+
+if [ -n "${PRIMARY_CATEGORY}${SECONDARY_CATEGORY}" ]; then
+  CATEGORY_SOURCE="explicit"
+  CATEGORY_PRIMARY_FINAL="${PRIMARY_CATEGORY}"
+  CATEGORY_SECONDARY_FINAL="${SECONDARY_CATEGORY}"
+  [ "${CATEGORY_PRIMARY_FINAL}" = "auto" ] && CATEGORY_PRIMARY_FINAL=""
+  [ "${CATEGORY_SECONDARY_FINAL}" = "auto" ] && CATEGORY_SECONDARY_FINAL=""
+
+  CATEGORY_SEED=""
+  if [ -f "${README_PATH}" ]; then
+    CATEGORY_SEED=$(python3 "${HELPER_PY}" extract-readme "${README_PATH}" --max-len 5000 || true)
+  fi
+  if [ "${PRIMARY_CATEGORY}" = "auto" ] || [ "${SECONDARY_CATEGORY}" = "auto" ]; then
+    if [ "${AI_ENABLED}" = "true" ] && [ -n "${CATEGORY_SEED}" ]; then
+      CATEGORY_AI_OUT="${RUNNER_TEMP:-/tmp}/repo-metadata.categories.json"
+      CATEGORY_AI_ERR="${RUNNER_TEMP:-/tmp}/repo-metadata.categories.err"
+      PROMPT=$(printf 'You classify GitHub Marketplace Actions. Read the repository excerpt and choose the best primary and secondary categories from this exact allowlist: %s. Return ONLY valid JSON with string fields primary, secondary and numeric fields primary_confidence, secondary_confidence. Confidence must be between 0 and 1. Use null for a category when no good fit exists. Do not choose the same category twice. Excerpt:\n\n%s' "${CATEGORY_SLUGS}" "${CATEGORY_SEED}")
+      PAYLOAD=$(jq -Rs --arg model "${AI_MODEL}" '{model: $model, temperature: 0.1, messages: [{role: "system", content: "Return only the requested JSON object. Never invent a category outside the allowlist."}, {role: "user", content: .}]}' <<<"${PROMPT}")
+      HTTP_CODE=$(curl -sS -o "${CATEGORY_AI_OUT}" -w '%{http_code}' \
+        -H "Authorization: Bearer ${GH_TOKEN}" \
+        -H "Accept: application/vnd.github+json" \
+        -H "Content-Type: application/json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -d "${PAYLOAD}" 'https://models.github.ai/inference/chat/completions' \
+        2>"${CATEGORY_AI_ERR}" || true)
+      if [ "${HTTP_CODE}" = "200" ]; then
+        CATEGORY_AI_CONTENT=$(jq -r '.choices[0].message.content // empty' "${CATEGORY_AI_OUT}" 2>/dev/null || true)
+        CATEGORY_JSON=$(printf '%s' "${CATEGORY_AI_CONTENT}" | sed -n '/^{/,/^}/p' | head -n 20 || true)
+        if printf '%s' "${CATEGORY_JSON}" | jq -e . >/dev/null 2>&1; then
+          if [ "${PRIMARY_CATEGORY}" = "auto" ]; then
+            CATEGORY_PRIMARY_FINAL=$(printf '%s' "${CATEGORY_JSON}" | jq -r '.primary // empty')
+            CATEGORY_PRIMARY_CONFIDENCE=$(printf '%s' "${CATEGORY_JSON}" | jq -r '.primary_confidence // empty')
+          fi
+          if [ "${SECONDARY_CATEGORY}" = "auto" ]; then
+            CATEGORY_SECONDARY_FINAL=$(printf '%s' "${CATEGORY_JSON}" | jq -r '.secondary // empty')
+            CATEGORY_SECONDARY_CONFIDENCE=$(printf '%s' "${CATEGORY_JSON}" | jq -r '.secondary_confidence // empty')
+          fi
+          validate_category "${CATEGORY_PRIMARY_FINAL}"
+          validate_category "${CATEGORY_SECONDARY_FINAL}"
+          CATEGORY_SOURCE="ai"
+          AI_USED="true"
+          echo "::notice::repo-metadata: Marketplace categories from GitHub Models (${AI_MODEL})"
+        else
+          echo "::warning::repo-metadata: AI category response was not valid JSON; reporting categories as unresolved"
+        fi
+      else
+        echo "::warning::repo-metadata: AI category request failed (HTTP ${HTTP_CODE}); reporting categories as unresolved"
+      fi
+    else
+      echo "::warning::repo-metadata: category auto mode requires ai_enabled=true and a README excerpt"
+    fi
+  fi
+
+  CATEGORY_SLUG="${MARKETPLACE_SLUG:-${REPO_NAME}}"
+  CATEGORY_QUERY=$(jq -n --arg slug "${CATEGORY_SLUG}" '{query: "query($slug: String!) { marketplaceListing(slug: $slug) { primaryCategory { slug } secondaryCategory { slug } } }", variables: {slug: $slug}}')
+  CATEGORY_CURRENT_OUT="${RUNNER_TEMP:-/tmp}/repo-metadata.categories.current.json"
+  CATEGORY_CURRENT_HTTP=$(curl -sS -o "${CATEGORY_CURRENT_OUT}" -w '%{http_code}' \
+    -H "Authorization: Bearer ${GH_TOKEN}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    -d "${CATEGORY_QUERY}" https://api.github.com/graphql 2>/dev/null || true)
+  if [ "${CATEGORY_CURRENT_HTTP}" = "200" ]; then
+    CURRENT_PRIMARY=$(jq -r '.data.marketplaceListing.primaryCategory.slug // empty' "${CATEGORY_CURRENT_OUT}" 2>/dev/null || true)
+    CURRENT_SECONDARY=$(jq -r '.data.marketplaceListing.secondaryCategory.slug // empty' "${CATEGORY_CURRENT_OUT}" 2>/dev/null || true)
+    if [ -n "${CURRENT_PRIMARY}${CURRENT_SECONDARY}" ]; then
+      if { [ -z "${CATEGORY_PRIMARY_FINAL}" ] || [ "${CURRENT_PRIMARY}" = "${CATEGORY_PRIMARY_FINAL}" ]; } \
+        && { [ -z "${CATEGORY_SECONDARY_FINAL}" ] || [ "${CURRENT_SECONDARY}" = "${CATEGORY_SECONDARY_FINAL}" ]; }; then
+        CATEGORY_STATUS="match"
+      else
+        CATEGORY_STATUS="mismatch"
+        echo "::warning::repo-metadata: Marketplace categories differ from the requested values; GitHub requires updating these in the listing editor"
+      fi
+    else
+      CATEGORY_STATUS="listing-not-found"
+      echo "::notice::repo-metadata: no Marketplace listing found for slug '${CATEGORY_SLUG}'; category comparison skipped"
+    fi
+  else
+    CATEGORY_STATUS="lookup-failed"
+    echo "::warning::repo-metadata: Marketplace category lookup failed (HTTP ${CATEGORY_CURRENT_HTTP}); category comparison skipped"
+  fi
+fi
+
 # ---------- Resolve homepage -------------------------------------------------
 
 HOMEPAGE_FINAL=""
@@ -330,6 +447,10 @@ fi
   printf 'topics_source=%s\n'      "${TOPICS_SOURCE}"
   printf 'ai_used=%s\n'            "${AI_USED}"
   printf 'applied=%s\n'            "${APPLIED}"
+  printf 'primary_category=%s\n' "${CATEGORY_PRIMARY_FINAL}"
+  printf 'secondary_category=%s\n' "${CATEGORY_SECONDARY_FINAL}"
+  printf 'primary_category_confidence=%s\n' "${CATEGORY_PRIMARY_CONFIDENCE}"
+  printf 'secondary_category_confidence=%s\n' "${CATEGORY_SECONDARY_CONFIDENCE}"
 } >> "${GITHUB_OUTPUT}"
 
 # ---------- Summary ----------------------------------------------------------
@@ -356,6 +477,16 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
       echo "| Topics (${topic_count}) | \`${TOPICS_FINAL}\` | ${TOPICS_SOURCE} |"
     else
       echo "| Topics | _(unchanged)_ | ${TOPICS_SOURCE} |"
+    fi
+    if [ -n "${CATEGORY_PRIMARY_FINAL}${CATEGORY_SECONDARY_FINAL}" ]; then
+      echo "| Marketplace primary | \`${CATEGORY_PRIMARY_FINAL:-none}\` | ${CATEGORY_SOURCE} (confidence=${CATEGORY_PRIMARY_CONFIDENCE:-n/a}) |"
+      echo "| Marketplace secondary | \`${CATEGORY_SECONDARY_FINAL:-none}\` | ${CATEGORY_SOURCE} (confidence=${CATEGORY_SECONDARY_CONFIDENCE:-n/a}) |"
+      echo "| Marketplace current | primary=\`${CURRENT_PRIMARY:-unknown}\`, secondary=\`${CURRENT_SECONDARY:-unknown}\` | ${CATEGORY_STATUS} |"
+      if [ "${CATEGORY_STATUS}" = "mismatch" ]; then
+        echo "| Marketplace action | Update categories in the listing editor; GitHub exposes no supported category-write API | manual |"
+      fi
+    else
+      echo "| Marketplace categories | _(unchanged)_ | ${CATEGORY_SOURCE} |"
     fi
     echo "| Show Releases    | \`${SHOW_RELEASES}\`    | input (best-effort) |"
     echo "| Show Deployments | \`${SHOW_DEPLOYMENTS}\` | input (best-effort) |"

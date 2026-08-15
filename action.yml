@@ -133,6 +133,28 @@ inputs:
     required: false
     default: '20'
 
+  # ----- Marketplace categories ------------------------------------------
+  primary_category:
+    description: >-
+      Marketplace primary category. Use a GitHub category slug, `auto` to
+      have AI recommend one from the README, or empty to skip category
+      management. Default `auto`.
+    required: false
+    default: 'auto'
+  secondary_category:
+    description: >-
+      Marketplace secondary category. Use a GitHub category slug, `auto` to
+      have AI recommend one from the README, or empty to skip category
+      management. Default `auto`.
+    required: false
+    default: 'auto'
+  marketplace_slug:
+    description: >-
+      Marketplace listing slug used to read current primary and secondary
+      categories. Empty derives the slug from the repository name.
+    required: false
+    default: ''
+
   # ----- AI ---------------------------------------------------------------
   ai_enabled:
     description: >-
@@ -206,6 +228,18 @@ outputs:
   applied:
     description: "`true` when at least one PATCH/PUT was sent successfully; `false` under `dry_run` or when nothing changed."
     value: ${{ steps.run.outputs.applied }}
+  primary_category:
+    description: 'Resolved primary Marketplace category slug, or empty when skipped.'
+    value: ${{ steps.run.outputs.primary_category }}
+  secondary_category:
+    description: 'Resolved secondary Marketplace category slug, or empty when skipped.'
+    value: ${{ steps.run.outputs.secondary_category }}
+  primary_category_confidence:
+    description: 'AI confidence for the primary category, from 0 to 1.'
+    value: ${{ steps.run.outputs.primary_category_confidence }}
+  secondary_category_confidence:
+    description: 'AI confidence for the secondary category, from 0 to 1.'
+    value: ${{ steps.run.outputs.secondary_category_confidence }}
 
 runs:
   using: composite
@@ -229,6 +263,9 @@ runs:
         GENERATE_TOPICS:     ${{ inputs.generate_topics }}
         TOPICS_FALLBACK:     ${{ inputs.topics_fallback }}
         MAX_TOPICS:          ${{ inputs.max_topics }}
+        PRIMARY_CATEGORY:    ${{ inputs.primary_category }}
+        SECONDARY_CATEGORY:  ${{ inputs.secondary_category }}
+        MARKETPLACE_SLUG:    ${{ inputs.marketplace_slug }}
         AI_ENABLED:          ${{ inputs.ai_enabled }}
         AI_MODEL:            ${{ inputs.ai_model }}
         SHOW_RELEASES:       ${{ inputs.show_releases }}
