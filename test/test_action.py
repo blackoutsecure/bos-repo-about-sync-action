@@ -4,6 +4,7 @@ Repo About Box Sync composite action (action.yml + run.sh + lib.sh).
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -111,6 +112,27 @@ def test_external_scripts_clean_under_shellcheck(sh_path: Path) -> None:
 
 
 class TestDryRunContract:
+    @staticmethod
+    def read_outputs(path: Path) -> dict[str, str]:
+        outputs: dict[str, str] = {}
+        lines = path.read_text().splitlines()
+        index = 0
+        while index < len(lines):
+            line = lines[index]
+            if "<<" in line:
+                key, marker = line.split("<<", 1)
+                index += 1
+                values: list[str] = []
+                while index < len(lines) and lines[index] != marker:
+                    values.append(lines[index])
+                    index += 1
+                outputs[key] = "\n".join(values)
+            elif "=" in line:
+                key, value = line.split("=", 1)
+                outputs[key] = value
+            index += 1
+        return outputs
+
     def run_action(self, temp_dir: Path, **overrides: str) -> subprocess.CompletedProcess[str]:
         output_path = temp_dir / "output"
         summary_path = temp_dir / "summary"
@@ -151,15 +173,16 @@ class TestDryRunContract:
             temp_dir = Path(raw_temp_dir)
             result = self.run_action(temp_dir)
             assert result.returncode == 0, result.stderr
-            outputs = dict(
-                line.split("=", 1)
-                for line in (temp_dir / "output").read_text().splitlines()
-            )
+            outputs = self.read_outputs(temp_dir / "output")
             assert outputs["description_source"] == "explicit"
             assert outputs["topics"] == "github-actions security"
             assert outputs["topics_source"] == "explicit"
             assert outputs["ai_used"] == "false"
             assert outputs["applied"] == "false"
+            assert outputs["changed"] == "true"
+            report = json.loads(outputs["report_json"])
+            assert any(row["field"] == "description" for row in report)
+            assert "| description |" in outputs["report"]
             assert "dry_run=true" in (temp_dir / "summary").read_text()
 
     def test_repo_must_have_exactly_two_segments(self) -> None:
@@ -187,3 +210,13 @@ class TestDryRunContract:
             result = self.run_action(Path(raw_temp_dir), DRY_RUN="yes")
             assert result.returncode != 0
             assert "must be 'true' or 'false'" in result.stderr
+
+    def test_report_annotations_can_be_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            result = self.run_action(
+                Path(raw_temp_dir), REPORT_ANNOTATIONS="false"
+            )
+            assert result.returncode == 0, result.stderr
+            assert "::warning" not in result.stdout
+            outputs = self.read_outputs(Path(raw_temp_dir) / "output")
+            assert json.loads(outputs["report_json"])

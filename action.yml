@@ -213,6 +213,13 @@ inputs:
       summary, but does NOT call the GitHub API. Default `false`.
     required: false
     default: 'false'
+  report_annotations:
+    description: >-
+      `true` emits GitHub warning/error annotations for metadata lookup,
+      API, and Marketplace-category issues. Expected skips remain summary-only.
+      Default `true`.
+    required: false
+    default: 'true'
 
 outputs:
   description:
@@ -248,6 +255,15 @@ outputs:
   secondary_category_confidence:
     description: 'AI confidence for the secondary category, from 0 to 1.'
     value: ${{ steps.run.outputs.secondary_category_confidence }}
+  changed:
+    description: '`true` when the desired metadata differed from the current snapshot.'
+    value: ${{ steps.run.outputs.changed }}
+  report:
+    description: 'Markdown field-by-field report suitable for a job summary or downstream artifact.'
+    value: ${{ steps.run.outputs.report }}
+  report_json:
+    description: 'JSON array of structured report rows with status, current, desired, source, and detail.'
+    value: ${{ steps.run.outputs.report_json }}
 
 runs:
   using: composite
@@ -282,6 +298,7 @@ runs:
         SHOW_DEPLOYMENTS:    ${{ inputs.show_deployments }}
         SHOW_PACKAGES:       ${{ inputs.show_packages }}
         DRY_RUN:             ${{ inputs.dry_run }}
+        REPORT_ANNOTATIONS:  ${{ inputs.report_annotations }}
       run: |
         set -euo pipefail
         export ERR_TITLE='Repo About Box Sync'
