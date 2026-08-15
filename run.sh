@@ -24,6 +24,10 @@ set -euo pipefail
 : "${PRIMARY_CATEGORY:=auto}"
 : "${SECONDARY_CATEGORY:=auto}"
 : "${MARKETPLACE_SLUG:=}"
+: "${AI_MODEL:=auto}"
+: "${DESCRIPTION_MODE:=auto}"
+: "${DESCRIPTION_FALLBACK:=}"
+: "${REPORT_ANNOTATIONS:=true}"
 
 # Shared helpers (die / require_var / validate_bool / ...). Sourced here
 # rather than relying on action.yml's source line, because run.sh runs
@@ -65,6 +69,7 @@ validate_bool SHOW_RELEASES
 validate_bool SHOW_DEPLOYMENTS
 validate_bool SHOW_PACKAGES
 validate_bool DRY_RUN
+validate_bool REPORT_ANNOTATIONS
 
 CATEGORY_SLUGS='ai-assisted api-management chat code-quality code-review continuous-integration dependency-management deployment ides learning localization mobile monitoring open-source-management project-management publishing security support testing utilities'
 
@@ -80,6 +85,43 @@ validate_category() {
 
 validate_category "${PRIMARY_CATEGORY}"
 validate_category "${SECONDARY_CATEGORY}"
+
+case "${DESCRIPTION_MODE}" in
+  auto|fallback|existing) ;;
+  *) die "input 'description_mode' must be auto, fallback, or existing (got: '${DESCRIPTION_MODE}')" ;;
+esac
+
+REPORT_JSON='[]'
+REPORT_MD=''
+CHANGED="false"
+
+annotate() {
+  local level=$1 message=$2
+  if [ "${REPORT_ANNOTATIONS}" = "true" ]; then
+    printf '::%s title=Repo About Box Sync::%s\n' "${level}" "${message}"
+  fi
+}
+
+report_row() {
+  local status=$1 field=$2 current=$3 desired=$4 source=$5 detail=$6
+  REPORT_JSON=$(jq -c \
+    --arg status "${status}" --arg field "${field}" \
+    --arg current "${current}" --arg desired "${desired}" \
+    --arg source "${source}" --arg detail "${detail}" \
+    '. + [{status: $status, field: $field, current: $current, desired: $desired, source: $source, detail: $detail}]' \
+    <<<"${REPORT_JSON}")
+  local current_md desired_md detail_md
+  current_md=$(printf '%s' "${current}" | sed 's/|/\\|/g; s/[[:space:]]\+/ /g')
+  desired_md=$(printf '%s' "${desired}" | sed 's/|/\\|/g; s/[[:space:]]\+/ /g')
+  detail_md=$(printf '%s' "${detail}" | sed 's/|/\\|/g; s/[[:space:]]\+/ /g')
+  [ -n "${current_md}" ] || current_md="_(none)_"
+  [ -n "${desired_md}" ] || desired_md="_(none)_"
+  REPORT_MD+="| ${field} | \`${status}\` | ${current_md} | ${desired_md} | ${source} | ${detail_md} |\n"
+}
+
+if [ -z "${AI_MODEL}" ] || [ "${AI_MODEL}" = "auto" ]; then
+  AI_MODEL="${GITHUB_MODELS_MODEL_METADATA:-${GITHUB_MODELS_MODEL:-openai/gpt-4o-mini}}"
+fi
 
 # ---------- Tool checks ------------------------------------------------------
 
@@ -108,19 +150,21 @@ DESC_FINAL=""
 DESC_SOURCE="existing"
 AI_USED="false"
 
-if [ -n "${DESCRIPTION}" ]; then
+if [ "${DESCRIPTION_MODE}" = "existing" ]; then
+  DESC_SOURCE="existing"
+elif [ -n "${DESCRIPTION}" ]; then
   DESC_FINAL=$(printf '%s' "${DESCRIPTION}" | python3 "${HELPER_PY}" clamp-description --max-len "${DESCRIPTION_MAX_LEN}")
   DESC_SOURCE="explicit"
 else
   if [ ! -f "${README_PATH}" ]; then
-    echo "::warning::repo-about-sync: README '${README_PATH}' not found; leaving description unchanged"
+    annotate warning "README '${README_PATH}' not found; leaving description unchanged"
   else
     README_SEED=$(python3 "${HELPER_PY}" extract-readme "${README_PATH}" --max-len 1500 || true)
     if [ -z "${README_SEED}" ]; then
-      echo "::warning::repo-about-sync: could not extract a prose summary from '${README_PATH}'; leaving description unchanged"
+      annotate warning "Could not extract a prose summary from '${README_PATH}'; leaving description unchanged"
     else
       DESC_CANDIDATE=""
-      if [ "${AI_ENABLED}" = "true" ]; then
+      if [ "${DESCRIPTION_MODE}" = "auto" ] && [ "${AI_ENABLED}" = "true" ]; then
         # ---- AI rewrite -------------------------------------------
         AI_OUT="${RUNNER_TEMP:-/tmp}/repo-about-sync.desc.json"
         AI_ERR="${RUNNER_TEMP:-/tmp}/repo-about-sync.desc.err"
@@ -150,10 +194,10 @@ else
             AI_USED="true"
             echo "::notice::repo-about-sync: description from GitHub Models (${AI_MODEL})"
           else
-            echo "::warning::repo-about-sync: AI description returned 200 but empty; falling back to README seed"
+            annotate warning "AI description returned 200 but empty; falling back to README seed"
           fi
         else
-          echo "::warning::repo-about-sync: AI description request failed (HTTP ${HTTP_CODE}); falling back to README seed. Most likely missing 'models: read' permission."
+          annotate warning "AI description request failed (HTTP ${HTTP_CODE}); falling back to README seed. Most likely missing 'models: read' permission"
           head -c 500 "${AI_OUT}" >&2 || true
           cat "${AI_ERR}" >&2 || true
           echo "" >&2
@@ -161,8 +205,13 @@ else
       fi
 
       if [ -z "${DESC_CANDIDATE}" ]; then
-        DESC_CANDIDATE="${README_SEED}"
-        DESC_SOURCE="readme"
+        if [ "${DESCRIPTION_MODE}" = "fallback" ] && [ -n "${DESCRIPTION_FALLBACK}" ]; then
+          DESC_CANDIDATE="${DESCRIPTION_FALLBACK}"
+          DESC_SOURCE="fallback"
+        else
+          DESC_CANDIDATE="${README_SEED}"
+          DESC_SOURCE="readme"
+        fi
       fi
       DESC_FINAL=$(printf '%s' "${DESC_CANDIDATE}" | python3 "${HELPER_PY}" clamp-description --max-len "${DESCRIPTION_MAX_LEN}")
     fi
@@ -179,7 +228,7 @@ if [ -n "${TOPICS}" ]; then
   TOPICS_SOURCE="explicit"
 elif [ "${GENERATE_TOPICS}" = "true" ]; then
   if [ ! -f "${README_PATH}" ]; then
-    echo "::warning::repo-about-sync: cannot generate topics (README '${README_PATH}' missing); using fallback"
+    annotate warning "Cannot generate topics (README '${README_PATH}' missing); using fallback"
     TOPICS_FINAL=$(python3 "${HELPER_PY}" sanitize-topics --max-count "${MAX_TOPICS}" --value "${TOPICS_FALLBACK}")
     [ -n "${TOPICS_FINAL}" ] && TOPICS_SOURCE="fallback"
   else
@@ -212,7 +261,7 @@ elif [ "${GENERATE_TOPICS}" = "true" ]; then
           AI_USED="true"
         fi
       else
-        echo "::warning::repo-about-sync: AI topics request failed (HTTP ${HTTP_CODE}); falling back. Most likely missing 'models: read' permission."
+        annotate warning "AI topics request failed (HTTP ${HTTP_CODE}); falling back. Most likely missing 'models: read' permission"
         head -c 500 "${AI_OUT}" >&2 || true
         cat "${AI_ERR}" >&2 || true
         echo "" >&2
@@ -292,13 +341,13 @@ if [ -n "${PRIMARY_CATEGORY}${SECONDARY_CATEGORY}" ]; then
           AI_USED="true"
           echo "::notice::repo-metadata: Marketplace categories from GitHub Models (${AI_MODEL})"
         else
-          echo "::warning::repo-metadata: AI category response was not valid JSON; reporting categories as unresolved"
+          annotate warning "AI category response was not valid JSON; reporting categories as unresolved"
         fi
       else
-        echo "::warning::repo-metadata: AI category request failed (HTTP ${HTTP_CODE}); reporting categories as unresolved"
+        annotate warning "AI category request failed (HTTP ${HTTP_CODE}); reporting categories as unresolved"
       fi
     else
-      echo "::warning::repo-metadata: category auto mode requires ai_enabled=true and a README excerpt"
+      annotate warning "Category auto mode requires ai_enabled=true and a README excerpt"
     fi
   fi
 
@@ -320,7 +369,7 @@ if [ -n "${PRIMARY_CATEGORY}${SECONDARY_CATEGORY}" ]; then
         CATEGORY_STATUS="match"
       else
         CATEGORY_STATUS="mismatch"
-        echo "::warning::repo-metadata: Marketplace categories differ from the requested values; GitHub requires updating these in the listing editor"
+        annotate warning "Marketplace categories differ from the requested values; GitHub requires updating these in the listing editor"
       fi
     else
       CATEGORY_STATUS="listing-not-found"
@@ -328,7 +377,7 @@ if [ -n "${PRIMARY_CATEGORY}${SECONDARY_CATEGORY}" ]; then
     fi
   else
     CATEGORY_STATUS="lookup-failed"
-    echo "::warning::repo-metadata: Marketplace category lookup failed (HTTP ${CATEGORY_CURRENT_HTTP}); category comparison skipped"
+    annotate warning "Marketplace category lookup failed (HTTP ${CATEGORY_CURRENT_HTTP}); category comparison skipped"
   fi
 fi
 
@@ -373,6 +422,71 @@ if [ "${TOPICS_SOURCE}" != "skipped" ]; then
   fi
 fi
 
+# ---------- Snapshot and compare current metadata --------------------------
+
+CURRENT_DESCRIPTION=""
+CURRENT_HOMEPAGE=""
+CURRENT_TOPICS=""
+CURRENT_METADATA_STATUS="ok"
+CURRENT_METADATA_OUT="${RUNNER_TEMP:-/tmp}/repo-about-sync.current.json"
+CURRENT_METADATA_ERR="${RUNNER_TEMP:-/tmp}/repo-about-sync.current.err"
+CURRENT_METADATA_HTTP=$(curl -sS --max-time 30 \
+  -o "${CURRENT_METADATA_OUT}" -w '%{http_code}' \
+  -H "Authorization: Bearer ${GH_TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  "https://api.github.com/repos/${OWNER}/${REPO_NAME}" \
+  2>"${CURRENT_METADATA_ERR}" || true)
+if [[ "${CURRENT_METADATA_HTTP}" == 2* ]]; then
+  CURRENT_DESCRIPTION=$(jq -r '.description // empty' "${CURRENT_METADATA_OUT}" 2>/dev/null || true)
+  CURRENT_HOMEPAGE=$(jq -r '.homepage // empty' "${CURRENT_METADATA_OUT}" 2>/dev/null || true)
+  CURRENT_TOPICS=$(jq -r '(.topics // []) | join(" ")' "${CURRENT_METADATA_OUT}" 2>/dev/null || true)
+else
+  CURRENT_METADATA_STATUS="lookup-failed"
+  annotate warning "Repository metadata lookup failed (HTTP ${CURRENT_METADATA_HTTP}); report comparisons may be incomplete"
+  report_row warn "repository" "unavailable" "read current metadata" "GitHub API" "HTTP ${CURRENT_METADATA_HTTP}"
+fi
+
+topics_match="false"
+if [ -n "${TOPICS_PAYLOAD}" ]; then
+  topics_match=$(jq -n --arg current "${CURRENT_TOPICS}" --arg desired "${TOPICS_FINAL}" \
+    '([$current | split(" ") | map(select(length > 0)) | sort] == [$desired | split(" ") | map(select(length > 0)) | sort])')
+fi
+
+if [ "${DESC_SOURCE}" = "existing" ] || [ -z "${DESC_FINAL}" ]; then
+  report_row skip "description" "${CURRENT_DESCRIPTION}" "" "${DESC_SOURCE}" "No description change requested"
+elif [ "${CURRENT_METADATA_STATUS}" != "ok" ]; then
+  report_row warn "description" "unavailable" "${DESC_FINAL}" "${DESC_SOURCE}" "Current value could not be read"
+  CHANGED="true"
+elif [ "${CURRENT_DESCRIPTION}" = "${DESC_FINAL}" ]; then
+  report_row pass "description" "${CURRENT_DESCRIPTION}" "${DESC_FINAL}" "${DESC_SOURCE}" "Already matches"
+else
+  report_row change "description" "${CURRENT_DESCRIPTION}" "${DESC_FINAL}" "${DESC_SOURCE}" "Will update"
+  CHANGED="true"
+fi
+
+case "${HOMEPAGE_OP}" in
+  skip) report_row skip "homepage" "${CURRENT_HOMEPAGE}" "" "skip" "No homepage change requested" ;;
+  clear)
+    if [ -z "${CURRENT_HOMEPAGE}" ]; then report_row pass "homepage" "" "" "input" "Already clear"; else report_row change "homepage" "${CURRENT_HOMEPAGE}" "" "input" "Will clear"; CHANGED="true"; fi ;;
+  set)
+    if [ "${CURRENT_HOMEPAGE}" = "${HOMEPAGE_FINAL}" ]; then report_row pass "homepage" "${CURRENT_HOMEPAGE}" "${HOMEPAGE_FINAL}" "input" "Already matches"; else report_row change "homepage" "${CURRENT_HOMEPAGE}" "${HOMEPAGE_FINAL}" "input" "Will update"; CHANGED="true"; fi ;;
+esac
+
+if [ "${TOPICS_SOURCE}" = "skipped" ]; then
+  report_row skip "topics" "${CURRENT_TOPICS}" "" "skipped" "No topic change requested"
+elif [ "${topics_match}" = "true" ]; then
+  report_row pass "topics" "${CURRENT_TOPICS}" "${TOPICS_FINAL}" "${TOPICS_SOURCE}" "Already matches"
+else
+  report_row change "topics" "${CURRENT_TOPICS}" "${TOPICS_FINAL}" "${TOPICS_SOURCE}" "Will replace topics"
+  CHANGED="true"
+fi
+
+if [ -n "${CATEGORY_PRIMARY_FINAL}${CATEGORY_SECONDARY_FINAL}" ]; then
+  report_row "${CATEGORY_STATUS}" "marketplace-categories" "primary=${CURRENT_PRIMARY}, secondary=${CURRENT_SECONDARY}" "primary=${CATEGORY_PRIMARY_FINAL}, secondary=${CATEGORY_SECONDARY_FINAL}" "${CATEGORY_SOURCE}" "${CATEGORY_STATUS}"
+fi
+report_row pass "sidebar-widgets" "not exposed by API" "releases=${SHOW_RELEASES}, deployments=${SHOW_DEPLOYMENTS}, packages=${SHOW_PACKAGES}" "input" "Best-effort PATCH fields"
+
 # ---------- Apply ------------------------------------------------------------
 
 APPLIED="false"
@@ -395,6 +509,7 @@ else
   case "${PATCH_HTTP}" in
     2*)
       APPLIED="true"
+      report_row changed "repository-patch" "pending" "description/homepage/widgets" "GitHub API" "PATCH succeeded (HTTP ${PATCH_HTTP})"
       echo "::notice::repo-about-sync: repo PATCH ok (HTTP ${PATCH_HTTP})"
       echo "::notice::repo-about-sync: 'show_releases/show_deployments/show_packages' fields are best-effort — GitHub does not document them on the public REST API; the PATCH succeeds and the documented fields (description/homepage) are applied authoritatively."
       ;;
@@ -403,6 +518,8 @@ else
       head -c 500 "${PATCH_OUT}" >&2 || true
       cat "${PATCH_ERR}" >&2 || true
       echo "" >&2
+      report_row fail "repository-patch" "not applied" "description/homepage/widgets" "GitHub API" "HTTP ${PATCH_HTTP}: ${msg:-unknown error}"
+      annotate error "Repository PATCH failed (HTTP ${PATCH_HTTP}): ${msg:-unknown error}"
       die "repo PATCH failed (HTTP ${PATCH_HTTP}): ${msg:-unknown error}. Check that 'github_token' has 'Administration: write' on this repo."
       ;;
   esac
@@ -424,6 +541,7 @@ else
     case "${TOPICS_HTTP}" in
       2*)
         APPLIED="true"
+        report_row changed "topics-write" "pending" "${TOPICS_FINAL}" "GitHub API" "PUT succeeded (HTTP ${TOPICS_HTTP})"
         echo "::notice::repo-about-sync: topics PUT ok (HTTP ${TOPICS_HTTP})"
         ;;
       *)
@@ -431,6 +549,8 @@ else
         head -c 500 "${TOPICS_OUT}" >&2 || true
         cat "${TOPICS_ERR}" >&2 || true
         echo "" >&2
+        report_row fail "topics-write" "not applied" "${TOPICS_FINAL}" "GitHub API" "HTTP ${TOPICS_HTTP}: ${msg:-unknown error}"
+        annotate error "Topics PUT failed (HTTP ${TOPICS_HTTP}): ${msg:-unknown error}"
         die "topics PUT failed (HTTP ${TOPICS_HTTP}): ${msg:-unknown error}. Check that 'github_token' has 'Administration: write' on this repo."
         ;;
     esac
@@ -451,6 +571,9 @@ fi
   printf 'secondary_category=%s\n' "${CATEGORY_SECONDARY_FINAL}"
   printf 'primary_category_confidence=%s\n' "${CATEGORY_PRIMARY_CONFIDENCE}"
   printf 'secondary_category_confidence=%s\n' "${CATEGORY_SECONDARY_CONFIDENCE}"
+  printf 'changed=%s\n' "${CHANGED}"
+  printf 'report_json=%s\n' "${REPORT_JSON}"
+  printf 'report<<__REPO_ABOUT_REPORT__\n%b\n__REPO_ABOUT_REPORT__\n' "${REPORT_MD}"
 } >> "${GITHUB_OUTPUT}"
 
 # ---------- Summary ----------------------------------------------------------
@@ -459,8 +582,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "### Repo About Box Sync"
     echo ""
-    echo "| Field | Value | Source |"
-    echo "|---|---|---|"
+    echo "| Field | Status | Current | Desired | Source | Detail |"
+    echo "|---|---|---|---|---|---|"
+    printf '%b' "${REPORT_MD}"
     if [ -n "${DESC_FINAL}" ]; then
       desc_md=$(printf '%s' "${DESC_FINAL}" | sed -e 's/|/\\|/g')
       echo "| Description (${#DESC_FINAL}/${DESCRIPTION_MAX_LEN}) | ${desc_md} | ${DESC_SOURCE} |"
@@ -492,6 +616,12 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| Show Deployments | \`${SHOW_DEPLOYMENTS}\` | input (best-effort) |"
     echo "| Show Packages    | \`${SHOW_PACKAGES}\`    | input (best-effort) |"
     echo "| AI used          | \`${AI_USED}\` | ${AI_MODEL} |"
+    echo "| Changed          | \`${CHANGED}\` | dry_run=${DRY_RUN} |"
     echo "| Applied          | \`${APPLIED}\` | dry_run=${DRY_RUN} |"
+    echo ""
+    echo "#### Structured report"
+    echo '```json'
+    printf '%s\n' "${REPORT_JSON}"
+    echo '```'
   } >> "${GITHUB_STEP_SUMMARY}"
 fi

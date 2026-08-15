@@ -90,6 +90,14 @@ inputs:
       Default `350`.
     required: false
     default: '350'
+  description_mode:
+    description: '`auto` uses AI when enabled, then README; `fallback` skips AI; `existing` leaves the current description unchanged.'
+    required: false
+    default: 'auto'
+  description_fallback:
+    description: 'Deterministic description used by `fallback` mode when non-empty.'
+    required: false
+    default: ''
 
   # ----- Homepage ---------------------------------------------------------
   homepage:
@@ -170,7 +178,7 @@ inputs:
       GitHub Models model identifier (e.g. `openai/gpt-4o-mini`,
       `openai/gpt-4o`). Only consulted when `ai_enabled: true`.
     required: false
-    default: 'openai/gpt-4o-mini'
+    default: 'auto'
 
   # ----- Home-page widget toggles -----------------------------------------
   # Default reflects the "this is a release" framing: Releases ON,
@@ -205,6 +213,13 @@ inputs:
       summary, but does NOT call the GitHub API. Default `false`.
     required: false
     default: 'false'
+  report_annotations:
+    description: >-
+      `true` emits GitHub warning/error annotations for metadata lookup,
+      API, and Marketplace-category issues. Expected skips remain summary-only.
+      Default `true`.
+    required: false
+    default: 'true'
 
 outputs:
   description:
@@ -240,6 +255,15 @@ outputs:
   secondary_category_confidence:
     description: 'AI confidence for the secondary category, from 0 to 1.'
     value: ${{ steps.run.outputs.secondary_category_confidence }}
+  changed:
+    description: '`true` when the desired metadata differed from the current snapshot.'
+    value: ${{ steps.run.outputs.changed }}
+  report:
+    description: 'Markdown field-by-field report suitable for a job summary or downstream artifact.'
+    value: ${{ steps.run.outputs.report }}
+  report_json:
+    description: 'JSON array of structured report rows with status, current, desired, source, and detail.'
+    value: ${{ steps.run.outputs.report_json }}
 
 runs:
   using: composite
@@ -258,6 +282,8 @@ runs:
         README_PATH:         ${{ inputs.readme_path }}
         DESCRIPTION:         ${{ inputs.description }}
         DESCRIPTION_MAX_LEN: ${{ inputs.description_max_length }}
+        DESCRIPTION_MODE:     ${{ inputs.description_mode }}
+        DESCRIPTION_FALLBACK: ${{ inputs.description_fallback }}
         HOMEPAGE:            ${{ inputs.homepage }}
         TOPICS:              ${{ inputs.topics }}
         GENERATE_TOPICS:     ${{ inputs.generate_topics }}
@@ -272,6 +298,7 @@ runs:
         SHOW_DEPLOYMENTS:    ${{ inputs.show_deployments }}
         SHOW_PACKAGES:       ${{ inputs.show_packages }}
         DRY_RUN:             ${{ inputs.dry_run }}
+        REPORT_ANNOTATIONS:  ${{ inputs.report_annotations }}
       run: |
         set -euo pipefail
         export ERR_TITLE='Repo About Box Sync'

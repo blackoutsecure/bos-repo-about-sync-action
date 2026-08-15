@@ -112,6 +112,7 @@ homepage / topics to the job summary without calling the GitHub API.
 | `show_deployments` | `false` | Deployments sidebar widget (best-effort). |
 | `show_packages` | `false` | Packages sidebar widget (best-effort). |
 | `dry_run` | `false` | Compute and log outputs without calling the API. |
+| `report_annotations` | `true` | Emit actionable warning/error annotations; expected skips remain summary-only. |
 
 ## Outputs
 
@@ -124,6 +125,9 @@ homepage / topics to the job summary without calling the GitHub API.
 | `topics_source` | `explicit` \| `ai` \| `fallback` \| `skipped`. |
 | `ai_used` | `true` when GitHub Models produced the description or topics. |
 | `applied` | `true` when at least one write succeeded; `false` under `dry_run`. |
+| `changed` | `true` when desired metadata differed from the current repository snapshot. |
+| `report` | Detailed Markdown field-by-field report with status, current value, desired value, source, and detail. |
+| `report_json` | Machine-readable JSON array containing the same report rows. |
 
 ## Permissions and tokens
 
@@ -135,6 +139,11 @@ homepage / topics to the job summary without calling the GitHub API.
   grant `permissions: { models: read }`. Without it, the action logs a
   warning and falls back to the deterministic README seed / configured
   fallback topics.
+- **Reporting** performs a read-before-write snapshot and reports each field
+  as `pass`, `change`, `skip`, `warn`, or `fail`. Repository/API failures and
+  Marketplace category drift can produce annotations when
+  `report_annotations: true`; expected skipped fields do not create noisy
+  annotations.
 
 ## Security notes
 
