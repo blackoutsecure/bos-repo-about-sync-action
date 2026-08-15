@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bos-repo-about-sync-action"
+version = "0.1.0"
+description = "Composite GitHub Action that syncs a repo's About box (description, homepage, topics) from README content or explicit values, with optional AI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{name = "Blackout Secure"}]
+keywords = ["github", "actions", "marketplace", "repository-metadata", "readme"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "PyYAML>=6.0",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+addopts = "-ra"
+
+[project.urls]
+Homepage = "https://github.com/blackoutsecure/bos-repo-about-sync-action"
+Issues = "https://github.com/blackoutsecure/bos-repo-about-sync-action/issues"
+Source = "https://github.com/blackoutsecure/bos-repo-about-sync-action"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["E501"]
