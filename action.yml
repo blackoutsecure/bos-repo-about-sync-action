@@ -90,6 +90,14 @@ inputs:
       Default `350`.
     required: false
     default: '350'
+  description_mode:
+    description: '`auto` uses AI when enabled, then README; `fallback` skips AI; `existing` leaves the current description unchanged.'
+    required: false
+    default: 'auto'
+  description_fallback:
+    description: 'Deterministic description used by `fallback` mode when non-empty.'
+    required: false
+    default: ''
 
   # ----- Homepage ---------------------------------------------------------
   homepage:
@@ -170,7 +178,7 @@ inputs:
       GitHub Models model identifier (e.g. `openai/gpt-4o-mini`,
       `openai/gpt-4o`). Only consulted when `ai_enabled: true`.
     required: false
-    default: 'openai/gpt-4o-mini'
+    default: 'auto'
 
   # ----- Home-page widget toggles -----------------------------------------
   # Default reflects the "this is a release" framing: Releases ON,
@@ -258,6 +266,8 @@ runs:
         README_PATH:         ${{ inputs.readme_path }}
         DESCRIPTION:         ${{ inputs.description }}
         DESCRIPTION_MAX_LEN: ${{ inputs.description_max_length }}
+        DESCRIPTION_MODE:     ${{ inputs.description_mode }}
+        DESCRIPTION_FALLBACK: ${{ inputs.description_fallback }}
         HOMEPAGE:            ${{ inputs.homepage }}
         TOPICS:              ${{ inputs.topics }}
         GENERATE_TOPICS:     ${{ inputs.generate_topics }}

@@ -38,6 +38,11 @@
     "repo_metadata": {
       "enable": true,
       "homepage": "https://github.com/marketplace/actions/repo-about-box-sync",
+      "ai_model": "auto",
+      "description_mode": "auto",
+      "description_fallback": "",
+      "use_existing_readme": true,
+      "generate_readme": false,
       "generate_topics": true,
       "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace",
       "categories": {

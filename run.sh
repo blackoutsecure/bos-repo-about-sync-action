@@ -24,6 +24,9 @@ set -euo pipefail
 : "${PRIMARY_CATEGORY:=auto}"
 : "${SECONDARY_CATEGORY:=auto}"
 : "${MARKETPLACE_SLUG:=}"
+: "${AI_MODEL:=auto}"
+: "${DESCRIPTION_MODE:=auto}"
+: "${DESCRIPTION_FALLBACK:=}"
 
 # Shared helpers (die / require_var / validate_bool / ...). Sourced here
 # rather than relying on action.yml's source line, because run.sh runs
@@ -81,6 +84,15 @@ validate_category() {
 validate_category "${PRIMARY_CATEGORY}"
 validate_category "${SECONDARY_CATEGORY}"
 
+case "${DESCRIPTION_MODE}" in
+  auto|fallback|existing) ;;
+  *) die "input 'description_mode' must be auto, fallback, or existing (got: '${DESCRIPTION_MODE}')" ;;
+esac
+
+if [ -z "${AI_MODEL}" ] || [ "${AI_MODEL}" = "auto" ]; then
+  AI_MODEL="${GITHUB_MODELS_MODEL_METADATA:-${GITHUB_MODELS_MODEL:-openai/gpt-4o-mini}}"
+fi
+
 # ---------- Tool checks ------------------------------------------------------
 
 for tool in jq curl python3; do
@@ -108,7 +120,9 @@ DESC_FINAL=""
 DESC_SOURCE="existing"
 AI_USED="false"
 
-if [ -n "${DESCRIPTION}" ]; then
+if [ "${DESCRIPTION_MODE}" = "existing" ]; then
+  DESC_SOURCE="existing"
+elif [ -n "${DESCRIPTION}" ]; then
   DESC_FINAL=$(printf '%s' "${DESCRIPTION}" | python3 "${HELPER_PY}" clamp-description --max-len "${DESCRIPTION_MAX_LEN}")
   DESC_SOURCE="explicit"
 else
@@ -120,7 +134,7 @@ else
       echo "::warning::repo-about-sync: could not extract a prose summary from '${README_PATH}'; leaving description unchanged"
     else
       DESC_CANDIDATE=""
-      if [ "${AI_ENABLED}" = "true" ]; then
+      if [ "${DESCRIPTION_MODE}" = "auto" ] && [ "${AI_ENABLED}" = "true" ]; then
         # ---- AI rewrite -------------------------------------------
         AI_OUT="${RUNNER_TEMP:-/tmp}/repo-about-sync.desc.json"
         AI_ERR="${RUNNER_TEMP:-/tmp}/repo-about-sync.desc.err"
@@ -161,8 +175,13 @@ else
       fi
 
       if [ -z "${DESC_CANDIDATE}" ]; then
-        DESC_CANDIDATE="${README_SEED}"
-        DESC_SOURCE="readme"
+        if [ "${DESCRIPTION_MODE}" = "fallback" ] && [ -n "${DESCRIPTION_FALLBACK}" ]; then
+          DESC_CANDIDATE="${DESCRIPTION_FALLBACK}"
+          DESC_SOURCE="fallback"
+        else
+          DESC_CANDIDATE="${README_SEED}"
+          DESC_SOURCE="readme"
+        fi
       fi
       DESC_FINAL=$(printf '%s' "${DESC_CANDIDATE}" | python3 "${HELPER_PY}" clamp-description --max-len "${DESCRIPTION_MAX_LEN}")
     fi
