@@ -107,7 +107,7 @@ homepage / topics to the job summary without calling the GitHub API.
 | `topics_fallback` | `''` | Topics used if AI generation fails. |
 | `max_topics` | `20` | Hard cap on topics applied (GitHub's ceiling is 20). |
 | `ai_enabled` | `false` | Enable GitHub Models for description/topic generation. |
-| `ai_model` | `openai/gpt-4o-mini` | GitHub Models model identifier. |
+| `ai_model` | `auto` | GitHub Models model identifier, or `auto` for task-optimized selection. |
 | `show_releases` | `true` | Releases sidebar widget (best-effort). |
 | `show_deployments` | `false` | Deployments sidebar widget (best-effort). |
 | `show_packages` | `false` | Packages sidebar widget (best-effort). |
