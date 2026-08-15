@@ -1,0 +1,57 @@
+{
+  "marketplace": {
+    "enabled": true,
+    "target_branch": "main",
+    "allowlist_paths": [
+      "action.yml",
+      "run.sh",
+      "lib.sh",
+      "helper.py",
+      "README.md",
+      "LICENSE",
+      "NOTICE"
+    ],
+    "blocked_paths": [
+      ".github/workflows/",
+      ".editorconfig",
+      ".gitattributes",
+      ".gitignore",
+      ".markdownlint.json",
+      ".shellcheckrc",
+      ".yamllint.yml",
+      "pyproject.toml",
+      "test/"
+    ],
+    "required_paths": [
+      ".github/dependabot.yml",
+      "action.yml",
+      "run.sh",
+      "lib.sh",
+      "helper.py",
+      "README.md",
+      "LICENSE",
+      "NOTICE"
+    ],
+    "include_dependabot_config": true,
+    "include_github_metadata": false,
+    "repo_metadata": {
+      "enable": true,
+      "homepage": "https://github.com/marketplace/actions/repo-about-box-sync",
+      "generate_topics": true,
+      "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace"
+    }
+  },
+  "managed_file_sync": {
+    "services": [
+      "bos_universal_action_test_kicker",
+      "bos_universal_marketplace_kicker"
+    ]
+  },
+  "action_test": {
+    "python_versions": [
+      "3.10",
+      "3.11",
+      "3.12"
+    ]
+  }
+}

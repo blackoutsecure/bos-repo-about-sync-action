@@ -4,7 +4,7 @@
 > topics — in sync with its README, without hand-editing GitHub settings
 > on every release.
 
-[![CI](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/ci.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/ci.yml)
+[![Security](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 A single composite GitHub Action. Point it at a repo (defaults to the
@@ -144,6 +144,38 @@ homepage / topics to the job summary without calling the GitHub API.
   interpolated directly into shell commands without quoting.
 - HTTP calls use an explicit timeout and validate the response status
   code before trusting the body.
+
+## Releasing
+
+This repo is onboarded to the [bos-automation-hub](https://github.com/blackoutsecure/bos-automation-hub)
+managed fleet (see `.github/bos-universal-config.json`). CI, security
+scanning, and Marketplace publishing all run through hub-managed kicker
+workflows rather than bespoke ones:
+
+- `bos-universal-sync-kicker.yml` — keeps dotfiles, dependabot config,
+  and the other kickers themselves in sync with the hub.
+- `bos-universal-security-kicker.yml` — Ruff, pytest, ShellCheck,
+  and CodeQL on every push/PR to `main`/`dev`.
+- `bos-universal-action-test-kicker.yml` — pytest across the
+  `action_test.python_versions` matrix.
+- `bos-universal-marketplace-kicker.yml` — validates `action.yml` on
+  every push/PR, and on manual dispatch:
+  - `operation: release` — promotes `dev` to `main` (only the
+    `marketplace.allowlist_paths` files), tags a release, and publishes
+    it to GitHub Marketplace. Supports `dry_run` and `draft`.
+  - `operation: metadata` — syncs the repo's About box (description,
+    homepage, topics) from this README via this very action.
+  - `operation: name-check` / `validate` — pre-flight checks without
+    writing anything.
+
+Dispatch it from the **Actions** tab (`Blackout Secure Universal
+Marketplace` → `Run workflow`), or org-wide with dry-run review from
+`bos-automation-hub`'s `bos-org-kicker-fanout.yml` (`kicker: marketplace`).
+
+Releasing and syncing metadata both require the calling job to have an
+Administration-capable token: set a `REPO_ADMIN_PAT` (preferred) or
+`RELEASE_PAT` repo secret. Without either, metadata sync falls back to
+the read-only default `GITHUB_TOKEN` and skips the actual write.
 
 ## Local development
 
