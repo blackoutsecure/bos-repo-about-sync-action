@@ -36,7 +36,7 @@
     "include_github_metadata": false,
     "repo_metadata": {
       "enable": true,
-      "homepage": "https://github.com/marketplace/actions/repo-about-box-sync",
+      "homepage": "https://github.com/blackoutsecure/bos-repo-about-sync-action",
       "generate_topics": true,
       "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace"
     }
