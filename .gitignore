@@ -33,3 +33,28 @@ Thumbs.db
 /tmp/
 scratch/
 *.local
+
+# >>> managed-file-sync:common >>>
+# Managed by Blackout Secure Managed File Sync — configure services in .github/bos-universal-config.json.
+# OS + editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Build + dependency output
+node_modules/
+dist/
+build/
+coverage/
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local secrets (never commit these)
+.env
+.env.*
+!.env.example
+# <<< managed-file-sync:common <<<
