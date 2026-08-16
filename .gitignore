@@ -1,33 +1,13 @@
 # Python
-__pycache__/
-*.py[cod]
 *$py.class
 *.egg-info/
 .eggs/
-build/
-dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
 .tox/
-.venv/
 venv/
 pytest-results.xml
 
 # Editors
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.swp
-.DS_Store
-Thumbs.db
 
-# Local secrets (never commit these)
-.env
-.env.*
-!.env.example
 
 # Local scratch
 /tmp/
@@ -52,9 +32,20 @@ coverage/
 __pycache__/
 *.py[cod]
 .venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Local secrets (never commit these)
 .env
 .env.*
 !.env.example
 # <<< managed-file-sync:common <<<
+
+# >>> managed-file-sync:coverage_artifacts >>>
+# Managed by Blackout Secure Managed File Sync — configure services in .github/bos-universal-config.json.
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+# <<< managed-file-sync:coverage_artifacts <<<

@@ -12,16 +12,12 @@
 #            relative path shellcheck can't resolve at lint time
 #            outside the action's runtime cwd.
 
-shell=bash
-disable=SC2016,SC1091
-external-sources=true
 enable=quote-safe-variables
 enable=require-variable-braces
 
 # >>> managed-file-sync:shellcheck >>>
 # Managed by Blackout Secure Managed File Sync — configure services in .github/bos-universal-config.json.
 shell=bash
+disable=SC2016,SC1091
 external-sources=true
-enable=quote-safe-variables
-enable=require-variable-braces
 # <<< managed-file-sync:shellcheck <<<
