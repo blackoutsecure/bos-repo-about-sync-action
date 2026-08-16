@@ -1,9 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-      interval: "weekly"
-  - package-ecosystem: "pip"
-      interval: "weekly"
 
 # >>> managed-file-sync:dependabot_actions >>>
 # Managed by Blackout Secure Managed File Sync — configure services in .github/bos-universal-config.json.
