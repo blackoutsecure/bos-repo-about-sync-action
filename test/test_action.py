@@ -182,7 +182,12 @@ class TestDryRunContract:
             assert outputs["changed"] == "true"
             report = json.loads(outputs["report_json"])
             assert any(row["field"] == "description" for row in report)
+            widgets = next(row for row in report if row["field"] == "sidebar-widgets")
+            assert widgets["status"] == "pass"
+            assert widgets["current"] == "not exposed by API"
+            assert widgets["detail"] == "Best-effort PATCH fields"
             assert "| description |" in outputs["report"]
+            assert "| sidebar-widgets |" in outputs["report"]
             assert "dry_run=true" in (temp_dir / "summary").read_text()
 
     def test_repo_must_have_exactly_two_segments(self) -> None:

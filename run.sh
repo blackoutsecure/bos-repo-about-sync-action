@@ -585,43 +585,15 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| Field | Status | Current | Desired | Source | Detail |"
     echo "|---|---|---|---|---|---|"
     printf '%b' "${REPORT_MD}"
-    if [ -n "${DESC_FINAL}" ]; then
-      desc_md=$(printf '%s' "${DESC_FINAL}" | sed -e 's/|/\\|/g')
-      echo "| Description (${#DESC_FINAL}/${DESCRIPTION_MAX_LEN}) | ${desc_md} | ${DESC_SOURCE} |"
-    else
-      echo "| Description | _(unchanged)_ | ${DESC_SOURCE} |"
-    fi
-    case "${HOMEPAGE_OP}" in
-      set)   echo "| Homepage | ${HOMEPAGE_FINAL} | input |" ;;
-      clear) echo "| Homepage | _(cleared)_ | input |" ;;
-      *)     echo "| Homepage | _(unchanged)_ | skip |" ;;
-    esac
-    if [ -n "${TOPICS_FINAL}" ]; then
-      topic_count=$(printf '%s' "${TOPICS_FINAL}" | tr ' ' '\n' | grep -cv '^$' || true)
-      echo "| Topics (${topic_count}) | \`${TOPICS_FINAL}\` | ${TOPICS_SOURCE} |"
-    else
-      echo "| Topics | _(unchanged)_ | ${TOPICS_SOURCE} |"
-    fi
-    if [ -n "${CATEGORY_PRIMARY_FINAL}${CATEGORY_SECONDARY_FINAL}" ]; then
-      echo "| Marketplace primary | \`${CATEGORY_PRIMARY_FINAL:-none}\` | ${CATEGORY_SOURCE} (confidence=${CATEGORY_PRIMARY_CONFIDENCE:-n/a}) |"
-      echo "| Marketplace secondary | \`${CATEGORY_SECONDARY_FINAL:-none}\` | ${CATEGORY_SOURCE} (confidence=${CATEGORY_SECONDARY_CONFIDENCE:-n/a}) |"
-      echo "| Marketplace current | primary=\`${CURRENT_PRIMARY:-unknown}\`, secondary=\`${CURRENT_SECONDARY:-unknown}\` | ${CATEGORY_STATUS} |"
-      if [ "${CATEGORY_STATUS}" = "mismatch" ]; then
-        echo "| Marketplace action | Update categories in the listing editor; GitHub exposes no supported category-write API | manual |"
-      fi
-    else
-      echo "| Marketplace categories | _(unchanged)_ | ${CATEGORY_SOURCE} |"
-    fi
-    echo "| Show Releases    | \`${SHOW_RELEASES}\`    | input (best-effort) |"
-    echo "| Show Deployments | \`${SHOW_DEPLOYMENTS}\` | input (best-effort) |"
-    echo "| Show Packages    | \`${SHOW_PACKAGES}\`    | input (best-effort) |"
-    echo "| AI used          | \`${AI_USED}\` | ${AI_MODEL} |"
-    echo "| Changed          | \`${CHANGED}\` | dry_run=${DRY_RUN} |"
-    echo "| Applied          | \`${APPLIED}\` | dry_run=${DRY_RUN} |"
     echo ""
-    echo "#### Structured report"
-    echo '```json'
-    printf '%s\n' "${REPORT_JSON}"
-    echo '```'
+    echo "> **Execution:** AI=\`${AI_USED}\` (${AI_MODEL}) · changed=\`${CHANGED}\` · applied=\`${APPLIED}\` · dry_run=${DRY_RUN}"
+    if [ -n "${DESC_FINAL}${TOPICS_FINAL}" ]; then
+      desc_length="${#DESC_FINAL}/${DESCRIPTION_MAX_LEN} chars"
+      topic_count=$(printf '%s' "${TOPICS_FINAL}" | tr ' ' '\n' | grep -cv '^$' || true)
+      echo "> **Derived metadata:** description=${desc_length} · topics=${topic_count}"
+    fi
+    if [ "${CATEGORY_STATUS}" = "mismatch" ]; then
+      echo "> **Marketplace:** categories differ from the inferred values; update them in the listing editor because GitHub exposes no supported category-write API."
+    fi
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
