@@ -145,6 +145,28 @@ class TestExtractReadmeSummary:
         text = "# R\n\nOne line\nsplit  across two\n"
         assert rm.extract_readme_summary(text) == "One line split across two"
 
+    def test_skips_technical_blockquote_for_plain_prose(self) -> None:
+        text = (
+            "# Repo\n\n"
+            "> The `secrets.SCANNING_PAT || secrets.GITHUB_TOKEN` form is safe.\n\n"
+            "A drop-in security scanner for GitHub Actions repositories.\n"
+        )
+        assert (
+            rm.extract_readme_summary(text)
+            == "A drop-in security scanner for GitHub Actions repositories."
+        )
+
+    def test_skips_copyright_notice_for_plain_prose(self) -> None:
+        text = (
+            "# Repo\n\n"
+            "**Copyright © 2025-2026 Example | Apache License 2.0**\n\n"
+            "A focused tool for repository maintenance.\n"
+        )
+        assert (
+            rm.extract_readme_summary(text)
+            == "A focused tool for repository maintenance."
+        )
+
 
 # ---------------------------------------------------------------------------
 # clamp_description
@@ -167,6 +189,17 @@ class TestClampDescription:
             rm.clamp_description(text, max_len=100)
             == 'Syncs repo metadata - with "curly quotes" and cafe'
         )
+
+    def test_strips_inline_markdown(self) -> None:
+        text = "Keep a repository's public **About** box in [sync](https://example.com) with `README.md`."
+        assert (
+            rm.clamp_description(text, max_len=200)
+            == "Keep a repository's public About box in sync with ."
+        )
+
+    def test_removes_template_and_variable_references(self) -> None:
+        text = "Use `${{ secrets.SCANNING_PAT || secrets.GITHUB_TOKEN }}` with $TOKEN for scans."
+        assert rm.clamp_description(text, max_len=200) == "Use with for scans."
 
     def test_clamps_with_ellipsis_at_word_boundary(self) -> None:
         text = "one two three four five six seven eight nine ten"

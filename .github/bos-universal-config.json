@@ -1,4 +1,11 @@
 {
+  "gate": {
+    "python_packages": [
+      "pytest>=8.0",
+      "ruff>=0.6",
+      "PyYAML>=6.0"
+    ]
+  },
   "marketplace": {
     "enabled": true,
     "target_branch": "main",
@@ -46,8 +53,8 @@
       "generate_topics": true,
       "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace",
       "categories": {
-        "primary": "auto",
-        "secondary": "auto"
+        "primary": "",
+        "secondary": ""
       },
       "marketplace_slug": "repo-about-box-sync"
     }
