@@ -143,8 +143,9 @@ esac
 # Precedence (first non-empty wins):
 #   1. ``DESCRIPTION`` input — caller explicitly provided one.
 #   2. AI rewrite of the README seed, when ``AI_ENABLED=true``.
-#   3. The README seed itself (deterministic fallback).
-#   4. Leave the existing description untouched (source = ``existing``).
+#   3. ``DESCRIPTION_FALLBACK`` — a curated deterministic fallback.
+#   4. The README seed itself.
+#   5. Leave the existing description untouched (source = ``existing``).
 
 DESC_FINAL=""
 DESC_SOURCE="existing"
@@ -194,10 +195,10 @@ else
             AI_USED="true"
             echo "::notice::repo-about-sync: description from GitHub Models (${AI_MODEL})"
           else
-            annotate warning "AI description returned 200 but empty; falling back to README seed"
+            annotate warning "AI description returned 200 but empty; using the configured fallback or README seed"
           fi
         else
-          annotate warning "AI description request failed (HTTP ${HTTP_CODE}); falling back to README seed. Most likely missing 'models: read' permission"
+          annotate warning "AI description request failed (HTTP ${HTTP_CODE}); GitHub Models is unavailable or rejected the request, so using the configured fallback or README seed"
           head -c 500 "${AI_OUT}" >&2 || true
           cat "${AI_ERR}" >&2 || true
           echo "" >&2
@@ -205,7 +206,7 @@ else
       fi
 
       if [ -z "${DESC_CANDIDATE}" ]; then
-        if [ "${DESCRIPTION_MODE}" = "fallback" ] && [ -n "${DESCRIPTION_FALLBACK}" ]; then
+        if [ -n "${DESCRIPTION_FALLBACK}" ]; then
           DESC_CANDIDATE="${DESCRIPTION_FALLBACK}"
           DESC_SOURCE="fallback"
         else
@@ -261,7 +262,7 @@ elif [ "${GENERATE_TOPICS}" = "true" ]; then
           AI_USED="true"
         fi
       else
-        annotate warning "AI topics request failed (HTTP ${HTTP_CODE}); falling back. Most likely missing 'models: read' permission"
+        annotate warning "AI topics request failed (HTTP ${HTTP_CODE}); GitHub Models is unavailable or rejected the request, so falling back"
         head -c 500 "${AI_OUT}" >&2 || true
         cat "${AI_ERR}" >&2 || true
         echo "" >&2
