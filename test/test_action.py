@@ -190,6 +190,23 @@ class TestDryRunContract:
             assert "| sidebar-widgets |" in outputs["report"]
             assert "dry_run=true" in (temp_dir / "summary").read_text()
 
+    def test_auto_mode_uses_curated_fallback_before_readme_seed(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            readme_path = temp_dir / "README.md"
+            readme_path.write_text("# Repo\n\nA technical README fallback.\n")
+            result = self.run_action(
+                temp_dir,
+                DESCRIPTION="",
+                README_PATH=str(readme_path),
+                DESCRIPTION_MODE="auto",
+                DESCRIPTION_FALLBACK="A curated repository description.",
+            )
+            assert result.returncode == 0, result.stderr
+            outputs = self.read_outputs(temp_dir / "output")
+            assert outputs["description"] == "A curated repository description."
+            assert outputs["description_source"] == "fallback"
+
     def test_repo_must_have_exactly_two_segments(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             result = self.run_action(
