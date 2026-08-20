@@ -35,6 +35,14 @@ TOPIC_MAX_COUNT = 20
 TOPIC_INVALID_RE = re.compile(r"[^a-z0-9-]+")
 TOPIC_COLLAPSE_RE = re.compile(r"-+")
 UNICODE_ESCAPE_RE = re.compile(r"\\(?:u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8}))")
+MARKDOWN_IMAGE_RE = re.compile(r"!\[([^]]*)\]\([^)]+\)")
+MARKDOWN_LINK_RE = re.compile(r"\[([^]]+)\]\([^)]+\)")
+INLINE_CODE_RE = re.compile(r"`[^`]*`")
+GITHUB_EXPRESSION_RE = re.compile(r"\$\{\{.*?\}\}")
+VARIABLE_REFERENCE_RE = re.compile(
+    r"(?i)\b(?:secrets|vars|github|inputs|env|steps|needs|matrix)\.[a-z_][a-z0-9_.-]*\b"
+)
+SHELL_VARIABLE_RE = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*")
 DESCRIPTION_PUNCTUATION = str.maketrans({
     "\u2018": "'",
     "\u2019": "'",
@@ -43,6 +51,7 @@ DESCRIPTION_PUNCTUATION = str.maketrans({
     "\u2013": "-",
     "\u2014": "-",
     "\u2026": "...",
+    "\u2192": " - ",
 })
 
 
@@ -114,15 +123,38 @@ def extract_readme_summary(text: str, max_len: int = 1500) -> str:
     def is_blockquote(line: str) -> bool:
         return line.startswith(">")
 
+    def is_legal_notice(value: str) -> bool:
+        return bool(
+            re.search(
+                r"(?i)\bcopyright\b|\blicen[cs]e\b|\ball rights reserved\b",
+                value,
+            )
+        )
+
     def all_lines_are(p: list[str], pred) -> bool:
         return all(pred(line) for line in p)
+
+    def is_description_candidate(value: str) -> bool:
+        return not any(
+            pattern.search(value)
+            for pattern in (
+                INLINE_CODE_RE,
+                GITHUB_EXPRESSION_RE,
+                VARIABLE_REFERENCE_RE,
+                SHELL_VARIABLE_RE,
+            )
+        )
 
     # Pass 1: prefer the first standalone blockquote tagline.
     for para in paragraphs:
         if all_lines_are(para, is_blockquote):
             joined = " ".join(line.lstrip("> ").strip() for line in para)
             joined = re.sub(r"\s+", " ", joined).strip()
-            if joined:
+            if (
+                joined
+                and not is_legal_notice(joined)
+                and is_description_candidate(joined)
+            ):
                 return _clip_words(joined, max_len)
 
     # Pass 2: first plain-prose paragraph.
@@ -143,7 +175,11 @@ def extract_readme_summary(text: str, max_len: int = 1500) -> str:
             continue
         joined = " ".join(prose_lines)
         joined = re.sub(r"\s+", " ", joined).strip()
-        if joined:
+        if (
+            joined
+            and not is_legal_notice(joined)
+            and is_description_candidate(joined)
+        ):
             return _clip_words(joined, max_len)
 
     return ""
@@ -163,7 +199,17 @@ def clamp_description(text: str, max_len: int) -> str:
     decoded = UNICODE_ESCAPE_RE.sub(
         lambda match: chr(int(match.group(1) or match.group(2), 16)), text
     )
-    s = unicodedata.normalize("NFKD", decoded.translate(DESCRIPTION_PUNCTUATION))
+    plain_text = MARKDOWN_IMAGE_RE.sub(r"\1", decoded)
+    plain_text = MARKDOWN_LINK_RE.sub(r"\1", plain_text)
+    plain_text = INLINE_CODE_RE.sub("", plain_text)
+    plain_text = GITHUB_EXPRESSION_RE.sub("", plain_text)
+    plain_text = VARIABLE_REFERENCE_RE.sub("", plain_text)
+    plain_text = SHELL_VARIABLE_RE.sub("", plain_text)
+    plain_text = plain_text.replace("**", "").replace("__", "")
+    plain_text = plain_text.replace("~~", "").replace("`", "")
+    s = unicodedata.normalize(
+        "NFKD", plain_text.translate(DESCRIPTION_PUNCTUATION)
+    )
     s = s.encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"\s+", " ", s).strip()
     if len(s) <= max_len:

@@ -1,12 +1,17 @@
-# Repo About Box Sync
+# Blackout Secure Repo About Box Sync
+
+**Copyright © 2025-2026 Blackout Secure | Apache License 2.0**
+
+[![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-blue?logo=github)](https://github.com/marketplace/actions/blackout-secure-repo-about-sync-action)
+[![GitHub release](https://img.shields.io/github/v/release/blackoutsecure/bos-repo-about-sync-action?sort=semver)](https://github.com/blackoutsecure/bos-repo-about-sync-action/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Made by BlackoutSecure](https://img.shields.io/badge/made%20by-BlackoutSecure-1f1f1f)](https://github.com/blackoutsecure)
 
 > Keep a repository's public **About** box — description, homepage, and
 > topics — in sync with its README, without hand-editing GitHub settings
 > on every release.
 
-[![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-blue?logo=github)](https://github.com/marketplace/actions/repo-about-box-sync)
 [![Security](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 A single composite GitHub Action. Point it at a repo (defaults to the
 one the workflow runs in), and it resolves and applies:
