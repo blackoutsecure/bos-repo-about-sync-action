@@ -197,7 +197,7 @@ else
             annotate warning "AI description returned 200 but empty; falling back to README seed"
           fi
         else
-          annotate warning "AI description request failed (HTTP ${HTTP_CODE}); falling back to README seed. Most likely missing 'models: read' permission"
+          annotate warning "AI description request failed (HTTP ${HTTP_CODE}); GitHub Models is unavailable or rejected the request, so falling back to the README seed"
           head -c 500 "${AI_OUT}" >&2 || true
           cat "${AI_ERR}" >&2 || true
           echo "" >&2
@@ -261,7 +261,7 @@ elif [ "${GENERATE_TOPICS}" = "true" ]; then
           AI_USED="true"
         fi
       else
-        annotate warning "AI topics request failed (HTTP ${HTTP_CODE}); falling back. Most likely missing 'models: read' permission"
+        annotate warning "AI topics request failed (HTTP ${HTTP_CODE}); GitHub Models is unavailable or rejected the request, so falling back"
         head -c 500 "${AI_OUT}" >&2 || true
         cat "${AI_ERR}" >&2 || true
         echo "" >&2
