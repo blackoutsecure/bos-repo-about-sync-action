@@ -4,14 +4,6 @@
       "at": "",
       "diff_score": 1,
       "published": true,
-      "running_total": 70,
-      "sha": "HEAD",
-      "source": "local"
-    },
-    {
-      "at": "",
-      "diff_score": 1,
-      "published": true,
       "running_total": 71,
       "sha": "HEAD",
       "source": "local"
@@ -147,6 +139,14 @@
     {
       "at": "",
       "diff_score": 2,
+      "published": true,
+      "running_total": 100,
+      "sha": "HEAD",
+      "source": "local"
+    },
+    {
+      "at": "",
+      "diff_score": 35,
       "published": true,
       "running_total": 100,
       "sha": "HEAD",
