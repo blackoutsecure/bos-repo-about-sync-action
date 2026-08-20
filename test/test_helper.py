@@ -161,18 +161,25 @@ class TestClampDescription:
             == "hello world friend"
         )
 
+    def test_normalizes_escaped_and_typographic_unicode_to_ascii(self) -> None:
+        text = r"Syncs repo metadata \u2014 with \u201ccurly quotes\u201d and cafe\u0301"
+        assert (
+            rm.clamp_description(text, max_len=100)
+            == 'Syncs repo metadata - with "curly quotes" and cafe'
+        )
+
     def test_clamps_with_ellipsis_at_word_boundary(self) -> None:
         text = "one two three four five six seven eight nine ten"
         out = rm.clamp_description(text, max_len=20)
         assert len(out) <= 20
-        assert out.endswith("…")
-        body = out.rstrip("…")
+        assert out.endswith("...")
+        body = out.removesuffix("...")
         assert not body.endswith(" ")
 
     def test_strips_trailing_punctuation_before_ellipsis(self) -> None:
         text = "one two three, four five six seven"
         out = rm.clamp_description(text, max_len=15)
-        assert out.endswith("…")
+        assert out.endswith("...")
         assert "," not in out[-2:]
 
     def test_zero_max_len_raises(self) -> None:
@@ -187,6 +194,9 @@ class TestClampDescription:
     def test_exact_fit_no_ellipsis(self) -> None:
         text = "abcdefghij"
         assert rm.clamp_description(text, max_len=10) == "abcdefghij"
+
+    def test_short_max_len_does_not_exceed_limit(self) -> None:
+        assert rm.clamp_description("abcdef", max_len=2) == "ab"
 
 
 # ---------------------------------------------------------------------------

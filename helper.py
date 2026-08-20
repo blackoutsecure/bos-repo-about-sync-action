@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 # GitHub repo topic rules:
@@ -33,6 +34,16 @@ TOPIC_MAX_LEN = 50
 TOPIC_MAX_COUNT = 20
 TOPIC_INVALID_RE = re.compile(r"[^a-z0-9-]+")
 TOPIC_COLLAPSE_RE = re.compile(r"-+")
+UNICODE_ESCAPE_RE = re.compile(r"\\(?:u([0-9a-fA-F]{4})|U([0-9a-fA-F]{8}))")
+DESCRIPTION_PUNCTUATION = str.maketrans({
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2026": "...",
+})
 
 
 def extract_readme_summary(text: str, max_len: int = 1500) -> str:
@@ -140,24 +151,31 @@ def extract_readme_summary(text: str, max_len: int = 1500) -> str:
 
 def clamp_description(text: str, max_len: int) -> str:
     """Normalize whitespace and clamp ``text`` to ``max_len`` chars
-    at a word boundary.
+    at a word boundary as ASCII-only plain text.
 
     If the input fits, returns the normalized text unchanged. If
     truncation is needed, walks back to the previous space so the
-    output does not end mid-word, then appends ``…`` (single
-    Unicode ellipsis, one char — keeps the total ≤ ``max_len``).
+    output does not end mid-word, then appends ``...`` (three ASCII
+    characters — keeps the total <= ``max_len``).
     """
     if max_len <= 0:
         raise ValueError("max_len must be > 0")
-    s = re.sub(r"\s+", " ", text).strip()
+    decoded = UNICODE_ESCAPE_RE.sub(
+        lambda match: chr(int(match.group(1) or match.group(2), 16)), text
+    )
+    s = unicodedata.normalize("NFKD", decoded.translate(DESCRIPTION_PUNCTUATION))
+    s = s.encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"\s+", " ", s).strip()
     if len(s) <= max_len:
         return s
-    # Reserve 1 char for the ellipsis.
-    cut = s[: max_len - 1]
+    if max_len < 4:
+        return s[:max_len]
+    # Reserve 3 characters for the ASCII ellipsis.
+    cut = s[: max_len - 3]
     last_space = cut.rfind(" ")
     if last_space > max_len * 0.5:
         cut = cut[:last_space]
-    return cut.rstrip(" ,.;:-") + "…"
+    return cut.rstrip(" ,.;:-") + "..."
 
 
 def _clip_words(text: str, max_len: int) -> str:
