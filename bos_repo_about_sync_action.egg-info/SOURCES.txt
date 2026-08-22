@@ -1,0 +1,12 @@
+LICENSE
+NOTICE
+README.md
+helper.py
+pyproject.toml
+bos_repo_about_sync_action.egg-info/PKG-INFO
+bos_repo_about_sync_action.egg-info/SOURCES.txt
+bos_repo_about_sync_action.egg-info/dependency_links.txt
+bos_repo_about_sync_action.egg-info/requires.txt
+bos_repo_about_sync_action.egg-info/top_level.txt
+test/test_action.py
+test/test_helper.py

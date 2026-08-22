@@ -1,18 +1,12 @@
-# Python
-*$py.class
-*.egg-info/
-.eggs/
-.tox/
-venv/
-pytest-results.xml
-
-# Editors
-
+# Repo-specific ignores. The hub's `common` block covers OS/editor
+# noise, secrets, and logs; the `python_ecosystem` service covers
+# Python venvs, caches, and packaging output.
 
 # Local scratch
 /tmp/
 scratch/
 *.local
+pytest-results.xml
 
 # >>> managed-file-sync:common >>>
 # OS + editor noise
