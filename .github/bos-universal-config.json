@@ -1,68 +1,69 @@
 {
-  "gate": {
-    "python_packages": [
-      "pytest>=8.0",
-      "ruff>=0.6",
-      "PyYAML>=6.0"
-    ]
-  },
-  "marketplace": {
-    "enabled": true,
-    "target_branch": "main",
-    "allowlist_paths": [
-      "action.yml",
-      "run.sh",
-      "lib.sh",
-      "helper.py",
-      "README.md",
-      "LICENSE",
-      "NOTICE"
-    ],
-    "blocked_paths": [
-      ".github/workflows/",
-      ".editorconfig",
-      ".gitattributes",
-      ".gitignore",
-      ".markdownlint.json",
-      ".markdownlint.yaml",
-      ".shellcheckrc",
-      ".yamllint.yml",
-      "pyproject.toml",
-      "test/"
-    ],
-    "required_paths": [
-      ".github/dependabot.yml",
-      "action.yml",
-      "run.sh",
-      "lib.sh",
-      "helper.py",
-      "README.md",
-      "LICENSE",
-      "NOTICE"
-    ],
-    "include_dependabot_config": true,
-    "include_github_metadata": false,
-    "repo_metadata": {
-      "enable": true,
-      "homepage": "https://github.com/marketplace/actions/repo-about-box-sync",
-      "ai_model": "auto",
-      "description_mode": "auto",
-      "description_fallback": "",
-      "use_existing_readme": true,
-      "generate_readme": false,
-      "generate_topics": true,
-      "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace",
-      "categories": {
-        "primary": "",
-        "secondary": ""
-      },
-      "marketplace_slug": "repo-about-box-sync"
+    "gate": {
+        "python_packages": [
+            "pytest>=8.0",
+            "ruff>=0.6",
+            "PyYAML>=6.0"
+        ]
+    },
+    "marketplace": {
+        "enabled": true,
+        "target_branch": "main",
+        "allowlist_paths": [
+            "action.yml",
+            "run.sh",
+            "lib.sh",
+            "helper.py",
+            "pyproject.toml",
+            "README.md",
+            "LICENSE",
+            "NOTICE"
+        ],
+        "blocked_paths": [
+            ".github/workflows/",
+            ".editorconfig",
+            ".gitattributes",
+            ".gitignore",
+            ".markdownlint.json",
+            ".markdownlint.yaml",
+            ".shellcheckrc",
+            ".yamllint.yml",
+            "test/"
+        ],
+        "required_paths": [
+            ".github/dependabot.yml",
+            "action.yml",
+            "run.sh",
+            "lib.sh",
+            "helper.py",
+            "pyproject.toml",
+            "README.md",
+            "LICENSE",
+            "NOTICE"
+        ],
+        "include_dependabot_config": true,
+        "include_github_metadata": false,
+        "repo_metadata": {
+            "enable": true,
+            "homepage": "https://github.com/marketplace/actions/repo-about-box-sync",
+            "ai_model": "auto",
+            "description_mode": "auto",
+            "description_fallback": "",
+            "use_existing_readme": true,
+            "generate_readme": false,
+            "generate_topics": true,
+            "topics_fallback": "github-actions repository-metadata readme automation composite-action devops marketplace",
+            "categories": {
+                "primary": "",
+                "secondary": ""
+            },
+            "marketplace_slug": "repo-about-box-sync"
+        }
+    },
+    "managed_file_sync": {
+        "services": [
+            "bos_universal_action_test_kicker",
+            "bos_universal_marketplace_kicker"
+        ]
     }
-  },
-  "managed_file_sync": {
-    "services": [
-      "bos_universal_action_test_kicker",
-      "bos_universal_marketplace_kicker"
-    ]
-  }
 }
