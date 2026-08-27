@@ -21,17 +21,24 @@ License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: PyYAML>=6.0; extra == "dev"
 Requires-Dist: ruff>=0.6; extra == "dev"
 Dynamic: license-file
 
-# Repo About Box Sync
+# Blackout Secure Repo About Box Sync
+
+**Copyright © 2025-2026 Blackout Secure | Apache License 2.0**
+
+[![Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-blue?logo=github)](https://github.com/marketplace/actions/blackout-secure-repo-about-sync-action)
+[![GitHub release](https://img.shields.io/github/v/release/blackoutsecure/bos-repo-about-sync-action?sort=semver)](https://github.com/blackoutsecure/bos-repo-about-sync-action/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Made by BlackoutSecure](https://img.shields.io/badge/made%20by-BlackoutSecure-1f1f1f)](https://github.com/blackoutsecure)
 
 > Keep a repository's public **About** box — description, homepage, and
 > topics — in sync with its README, without hand-editing GitHub settings
 > on every release.
 
-[![CI](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/ci.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Security](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml/badge.svg)](https://github.com/blackoutsecure/bos-repo-about-sync-action/actions/workflows/bos-universal-security-kicker.yml)
 
 A single composite GitHub Action. Point it at a repo (defaults to the
 one the workflow runs in), and it resolves and applies:
@@ -132,11 +139,12 @@ homepage / topics to the job summary without calling the GitHub API.
 | `topics_fallback` | `''` | Topics used if AI generation fails. |
 | `max_topics` | `20` | Hard cap on topics applied (GitHub's ceiling is 20). |
 | `ai_enabled` | `false` | Enable GitHub Models for description/topic generation. |
-| `ai_model` | `openai/gpt-4o-mini` | GitHub Models model identifier. |
+| `ai_model` | `auto` | GitHub Models model identifier, or `auto` for task-optimized selection. |
 | `show_releases` | `true` | Releases sidebar widget (best-effort). |
 | `show_deployments` | `false` | Deployments sidebar widget (best-effort). |
 | `show_packages` | `false` | Packages sidebar widget (best-effort). |
 | `dry_run` | `false` | Compute and log outputs without calling the API. |
+| `report_annotations` | `true` | Emit actionable warning/error annotations; expected skips remain summary-only. |
 
 ## Outputs
 
@@ -149,6 +157,9 @@ homepage / topics to the job summary without calling the GitHub API.
 | `topics_source` | `explicit` \| `ai` \| `fallback` \| `skipped`. |
 | `ai_used` | `true` when GitHub Models produced the description or topics. |
 | `applied` | `true` when at least one write succeeded; `false` under `dry_run`. |
+| `changed` | `true` when desired metadata differed from the current repository snapshot. |
+| `report` | Detailed Markdown field-by-field report with status, current value, desired value, source, and detail. |
+| `report_json` | Machine-readable JSON array containing the same report rows. |
 
 ## Permissions and tokens
 
@@ -160,6 +171,11 @@ homepage / topics to the job summary without calling the GitHub API.
   grant `permissions: { models: read }`. Without it, the action logs a
   warning and falls back to the deterministic README seed / configured
   fallback topics.
+- **Reporting** performs a read-before-write snapshot and reports each field
+  as `pass`, `change`, `skip`, `warn`, or `fail`. Repository/API failures and
+  Marketplace category drift can produce annotations when
+  `report_annotations: true`; expected skipped fields do not create noisy
+  annotations.
 
 ## Security notes
 
@@ -170,6 +186,38 @@ homepage / topics to the job summary without calling the GitHub API.
   interpolated directly into shell commands without quoting.
 - HTTP calls use an explicit timeout and validate the response status
   code before trusting the body.
+
+## Releasing
+
+This repo is onboarded to the [bos-automation-hub](https://github.com/blackoutsecure/bos-automation-hub)
+managed fleet (see `.github/bos-universal-config.json`). CI, security
+scanning, and Marketplace publishing all run through hub-managed kicker
+workflows rather than bespoke ones:
+
+- `bos-universal-sync-kicker.yml` — keeps dotfiles, dependabot config,
+  and the other kickers themselves in sync with the hub.
+- `bos-universal-security-kicker.yml` — Ruff, pytest, ShellCheck,
+  and CodeQL on every push/PR to `main`/`dev`.
+- `bos-universal-action-test-kicker.yml` — pytest across the
+  `action_test.python_versions` matrix.
+- `bos-universal-marketplace-kicker.yml` — validates `action.yml` on
+  every push/PR, and on manual dispatch:
+  - `operation: release` — promotes `dev` to `main` (only the
+    `marketplace.allowlist_paths` files), tags a release, and publishes
+    it to GitHub Marketplace. Supports `dry_run` and `draft`.
+  - `operation: metadata` — syncs the repo's About box (description,
+    homepage, topics) from this README via this very action.
+  - `operation: name-check` / `validate` — pre-flight checks without
+    writing anything.
+
+Dispatch it from the **Actions** tab (`Blackout Secure Universal
+Marketplace` → `Run workflow`), or org-wide with dry-run review from
+`bos-automation-hub`'s `bos-org-kicker-fanout.yml` (`kicker: marketplace`).
+
+Releasing and syncing metadata both require the calling job to have an
+Administration-capable token: set a `REPO_ADMIN_PAT` (preferred) or
+`RELEASE_PAT` repo secret. Without either, metadata sync falls back to
+the read-only default `GITHUB_TOKEN` and skips the actual write.
 
 ## Local development
 
