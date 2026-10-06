@@ -52,6 +52,15 @@ def test_action_runs_is_composite() -> None:
     assert _manifest()["runs"].get("using") == "composite"
 
 
+def test_scorecard_publishing_uses_a_literal_ubuntu_runner() -> None:
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/scorecard.yml").read_text(encoding="utf-8")
+    )
+    analysis = workflow["jobs"]["analysis"]
+    assert analysis["runs-on"] == "ubuntu-latest"
+    assert any(step.get("with", {}).get("publish_results") is True for step in analysis["steps"])
+
+
 def test_every_input_has_description() -> None:
     inputs = _manifest().get("inputs") or {}
     assert inputs, "expected at least one input"

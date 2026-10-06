@@ -28,9 +28,8 @@ concurrency:
 jobs:
   analysis:
     name: Scorecard analysis
-    # Org-shared runner label; accepts a bare label or a JSON array.
-    # Falls back to `ubuntu-latest` when the variable is unset.
-    runs-on: ${{ fromJSON(startsWith(vars.DEFAULT_RUNNER || 'ubuntu-latest', '[') && (vars.DEFAULT_RUNNER || 'ubuntu-latest') || format('"{0}"', vars.DEFAULT_RUNNER || 'ubuntu-latest')) }}
+    # Scorecard's publishing verifier requires a literal Ubuntu runner.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       security-events: write
